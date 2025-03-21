@@ -51,14 +51,6 @@ This is a submission for the StackUp Hackathon, focusing on the challenge to bui
 3.  **Run the notebook cells sequentially.** The notebook is designed to demonstrate basic interaction with the GCP Blockchain RPC and fetch PYUSD transaction data.
 4.  **Explore and extend!** This is just a starting point.  Modify the notebook, add more analysis, integrate with BigQuery, create visualizations, etc., to build out your hackathon project based on the ideas and challenges outlined in the hackathon description.
 
-## Project Ideas (From Hackathon Description)
-
-*   **Real-time PYUSD Transaction Monitoring:**  Build a dashboard that displays live PYUSD transactions, volume, and network activity using GCP RPC.
-*   **Historical PYUSD Analytics:** Utilize BigQuery to analyze historical PYUSD transaction data, identify trends, and generate reports.
-*   **MEV Analysis for PYUSD:** Explore Maximally Extractable Value opportunities related to PYUSD transactions using GCP's computationally expensive methods like `debug_traceTransaction`.
-*   **PYUSD Network Congestion Dashboard:** Create a visualization of network congestion related to PYUSD transactions.
-*   **Web3 Payment Flow with PYUSD and GCP RPC:**  Develop a user-friendly Web3 payment flow that uses PYUSD and relies on GCP RPC for reliability.
-
 ## Future Enhancements
 
 *   Integrate with Google BigQuery to analyze historical PYUSD data.
