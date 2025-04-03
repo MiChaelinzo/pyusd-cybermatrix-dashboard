@@ -75,55 +75,6 @@ The dashboard should open automatically in your web browser.
 This tool is provided for informational and educational purposes only. Interact with blockchain data at your own risk. The simulation features are conceptual and do not represent a functional payment system. Ensure your RPC endpoint is secured appropriately.
 ```
 
----
-
-**Next Steps:**
-
-1.  Create a folder named `pyusd-cybermatrix-dashboard`.
-2.  Inside this folder, create the four files (`app.py`, `requirements.txt`, `.gitignore`, `README.md`) and paste the corresponding content into each.
-3.  **Crucially, edit `app.py` and insert your actual `GCP_RPC_ENDPOINT`.**
-4.  Open your terminal or command prompt, navigate into the `pyusd-cybermatrix-dashboard` folder.
-5.  Initialize a Git repository: `git init`
-6.  Add the files: `git add .`
-7.  Commit the files: `git commit -m "Initial commit of PYUSD CyberMatrix Dashboard"`
-8.  (Optional) Create a repository on GitHub (or GitLab/Bitbucket) and follow their instructions to link your local repository and push it:
-    ```bash
-    git remote add origin <your-remote-repo-url>
-    git branch -M main
-    git push -u origin main
-    ```
-
-The dashboard should open automatically in your web browser.
-
-## Important Considerations
-
-*   **RPC Provider:** The performance and availability of data (especially `trace_block`) heavily depend on your chosen Ethereum RPC provider and its capabilities/limitations. Some public or free endpoints might rate-limit requests or not support tracing methods.
-*   **Simulation:** The "Implant Simulation" tab is purely conceptual and for demonstration purposes. It does *not* involve real cryptographic signing or broadcasting transactions to the network.
-*   **Caching:** Data like token info, balances, and recent events are cached for short periods (defined in `@st.cache_data` / `@st.cache_resource` decorators) to improve performance and reduce RPC load. Refresh buttons or waiting out the cache TTL (Time To Live) will fetch new data.
-
-## Disclaimer
-
-This tool is provided for informational and educational purposes only. Interact with blockchain data at your own risk. The simulation features are conceptual and do not represent a functional payment system. Ensure your RPC endpoint is secured appropriately.
-```
-
----
-
-**Next Steps:**
-
-1.  Create a folder named `pyusd-cybermatrix-dashboard`.
-2.  Inside this folder, create the four files (`app.py`, `requirements.txt`, `.gitignore`, `README.md`) and paste the corresponding content into each.
-3.  **Crucially, edit `app.py` and insert your actual `GCP_RPC_ENDPOINT`.**
-4.  Open your terminal or command prompt, navigate into the `pyusd-cybermatrix-dashboard` folder.
-5.  Initialize a Git repository: `git init`
-6.  Add the files: `git add .`
-7.  Commit the files: `git commit -m "Initial commit of PYUSD CyberMatrix Dashboard"`
-8.  (Optional) Create a repository on GitHub (or GitLab/Bitbucket) and follow their instructions to link your local repository and push it:
-    ```bash
-    git remote add origin <your-remote-repo-url>
-    git branch -M main
-    git push -u origin main
-    ```
-
 # PYUSD Transaction Analytics Dashboard using GCP Blockchain RPC
 
 **Project Name:** PYUSD Transaction Analytics Dashboard
