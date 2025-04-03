@@ -73,7 +73,6 @@ The dashboard should open automatically in your web browser.
 ## Disclaimer
 
 This tool is provided for informational and educational purposes only. Interact with blockchain data at your own risk. The simulation features are conceptual and do not represent a functional payment system. Ensure your RPC endpoint is secured appropriately.
-```
 
 # PYUSD Transaction Analytics Dashboard using GCP Blockchain RPC
 
