@@ -49,9 +49,8 @@ A Streamlit dashboard providing real-time analytics for PayPal USD (PYUSD) on th
 
     ```python
     # Example (replace with your REAL endpoint):
-    GCP_RPC_ENDPOINT = "https://mainnet.infura.io/v3/YOUR_INFURA_PROJECT_ID"
-    # or for GCP BNE:
-    # GCP_RPC_ENDPOINT = "https://YOUR-ENDPOINT-ID.blockchainnodeengine.googleusercontent.com"
+    GCP BNE:
+    GCP_RPC_ENDPOINT = "https://YOUR-ENDPOINT-ID.blockchainnodeengine.googleusercontent.com"
     ```
     **Security Note:** For better security, consider using environment variables or Streamlit secrets (`.streamlit/secrets.toml`) to manage your RPC endpoint instead of hardcoding it directly in `app.py`, especially if sharing the repository publicly.
 
