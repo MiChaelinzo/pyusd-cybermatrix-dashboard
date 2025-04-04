@@ -6,6 +6,8 @@ A Streamlit dashboard providing real-time analytics for PayPal USD (PYUSD) on th
 
 <img width="934" alt="Screenshot 2025-04-04 111427" src="https://github.com/user-attachments/assets/15647170-2e1f-4575-8db0-64e2e6cb3157" />
 
+<img width="929" alt="Screenshot 2025-04-04 210617" src="https://github.com/user-attachments/assets/8f0934c1-65b2-4bc9-84fb-5b75757c34d3" />
+
 ## Features
 
 *   **Live Transfer Feed:** Displays the latest PYUSD `Transfer` events from the blockchain.
