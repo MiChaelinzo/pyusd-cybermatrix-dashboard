@@ -1,6 +1,6 @@
 # 🧬 PYUSD CyberMatrix Analytics Dashboard 🔗
 
-pyusd-cybermatrix.streamlit.app
+[Visit PYUSD CyberMatrix](http://pyusd-cybermatrix.streamlit.app)
 
 A Streamlit dashboard providing real-time analytics for PayPal USD (PYUSD) on the Ethereum blockchain, featuring a conceptual simulation of bio-implant payments. This tool interacts directly with an Ethereum RPC endpoint to fetch live data.
 
