@@ -2,32 +2,38 @@
 
 [Visit PYUSD CyberMatrix](http://pyusd-cybermatrix.streamlit.app)
 
-A Streamlit dashboard providing real-time analytics for PayPal USD (PYUSD) on the Ethereum blockchain, featuring a conceptual simulation of bio-implant payments. This tool interacts directly with an Ethereum RPC endpoint to fetch live data.
+A Streamlit dashboard providing real-time analytics for PayPal USD (PYUSD) on the Ethereum blockchain, powered by Google Cloud Platform (GCP) Blockchain RPC. This enhanced version integrates a Google Gemini AI assistant and a NewsAPI feed, alongside a conceptual simulation of bio-implant payments.
 
 <img width="934" alt="Screenshot 2025-04-04 111427" src="https://github.com/user-attachments/assets/15647170-2e1f-4575-8db0-64e2e6cb3157" />
 
 <img width="929" alt="Screenshot 2025-04-04 210617" src="https://github.com/user-attachments/assets/8f0934c1-65b2-4bc9-84fb-5b75757c34d3" />
 
+*(Screenshots reflect the general layout; specific data and AI responses will vary)*
+
 ## Features
 
-*   **Live Transfer Feed:** Displays the latest PYUSD `Transfer` events from the blockchain.
-*   **Volume Analysis:** Calculates the total PYUSD transferred within a recent block range.
-*   **Address Balance Checker:** Look up the current PYUSD balance of any Ethereum address.
-*   **Transaction Lookup:** Fetch detailed information about a specific transaction hash.
-*   **Block Trace Explorer:** (Requires compatible RPC) Inspect detailed execution steps within a specific block using `trace_block`.
+*   **Live Transfer Feed:** Displays the latest PYUSD `Transfer` events from the blockchain (via GCP RPC).
+*   **Volume & Address Analysis:** Calculates PYUSD transfer volume and visualizes top sender/receiver addresses within a recent block range (via GCP RPC).
+*   **Address Balance Checker:** Look up the current PYUSD balance of any Ethereum address (via GCP RPC).
+*   **Transaction Lookup:** Fetch detailed information about a specific transaction hash (via GCP RPC).
+*   **Block Trace Explorer:** (Requires compatible GCP RPC) Inspect detailed execution steps within a specific block using `debug_traceBlock*`.
+*   **AI Assistant:** Chat with Google Gemini about PYUSD, blockchain concepts, and the dashboard's features.
+*   **News Feed:** Displays recent news articles related to PYUSD, stablecoins, and blockchain via NewsAPI.
 *   **Implant Payment Simulation:** A conceptual demonstration of initiating a PYUSD payment via a simulated NFC bio-implant read, including simulated transaction creation and RPC tracing. **(Does not execute real transactions)**.
 *   **Themed UI:** Custom "CyberMatrix" themed interface using Streamlit and custom CSS.
 
 ## Prerequisites
 
 *   Python 3.8+
-*   Access to an Ethereum Mainnet RPC endpoint (e.g., from Google Cloud Blockchain Node Engine, Infura, Alchemy, QuickNode, etc.). **This dashboard WILL NOT FUNCTION without a valid RPC endpoint.**
+*   **Google Cloud Platform (GCP) Blockchain RPC Endpoint:** Access to an Ethereum Mainnet RPC endpoint. This dashboard is specifically designed with GCP's RPC in mind, but others might work. **The core blockchain features WILL NOT FUNCTION without a valid RPC endpoint.** ([Learn more about GCP Blockchain Node Engine](https://cloud.google.com/web3/blockchain-node-engine))
+*   **Google Gemini API Key:** Required for the AI Assistant feature. Obtainable from Google AI Studio or Google Cloud Console.
+*   **NewsAPI API Key:** Required for the News Feed feature. Obtainable from [newsapi.org](https://newsapi.org/).
 
 ## Setup & Installation
 
 1.  **Clone the repository:**
     ```bash
-    git clone https://github.com/your-username/pyusd-cybermatrix-dashboard.git # Replace with your repo URL
+    git clone https://github.com/MiChaelinzo/pyusd-cybermatrix-dashboard.git # Use the correct repo URL
     cd pyusd-cybermatrix-dashboard
     ```
 
@@ -45,38 +51,55 @@ A Streamlit dashboard providing real-time analytics for PayPal USD (PYUSD) on th
     pip install -r requirements.txt
     ```
 
-4.  **Configure RPC Endpoint:**
-    *   Open the `app.py` file in a text editor.
-    *   Locate the line: `GCP_RPC_ENDPOINT = ""`
-    *   **Replace the empty string `""` with your actual Ethereum RPC endpoint URL.**
-    *   Save the file.
+4.  **Configure Secrets (API Keys & RPC Endpoint):**
+    *   This application uses Streamlit Secrets for securely managing API keys and the RPC endpoint. **Do not hardcode them in `app.py`.**
+    *   Create a directory named `.streamlit` in the root of your project folder (if it doesn't exist):
+        ```bash
+        mkdir .streamlit
+        ```
+    *   Inside the `.streamlit` directory, create a file named `secrets.toml`.
+    *   Add your credentials to `secrets.toml` with the following structure:
 
-    ```python
-    # Example (replace with your REAL endpoint):
-    GCP BNE:
-    GCP_RPC_ENDPOINT = "https://YOUR-ENDPOINT-ID.blockchainnodeengine.googleusercontent.com"
-    ```
-    **Security Note:** For better security, consider using environment variables or Streamlit secrets (`.streamlit/secrets.toml`) to manage your RPC endpoint instead of hardcoding it directly in `app.py`, especially if sharing the repository publicly.
+        ```toml
+        # .streamlit/secrets.toml
+
+        [gemini_api]
+        api_key = "YOUR_ACTUAL_GEMINI_API_KEY"  # Replace with your real Google AI Gemini key
+
+        [rpc_config]
+        endpoint = "YOUR_ACTUAL_GCP_RPC_ENDPOINT_URL" # Replace with your real GCP RPC endpoint URL
+
+        [newsapi]
+        api_key = "YOUR_ACTUAL_NEWSAPI_ORG_KEY" # Replace with your real NewsAPI key
+        ```
+
+    *   Replace the placeholder values (`"YOUR_ACTUAL_..."`) with your real keys and endpoint URL.
+    *   **SECURITY:** Ensure the `.streamlit/secrets.toml` file is listed in your `.gitignore` file to prevent accidentally committing your secrets to version control. Create a `.gitignore` file in the project root if it doesn't exist and add the line:
+        ```
+        # .gitignore
+        .streamlit/secrets.toml
+        ```
 
 ## Running the Dashboard
 
-Once configured, run the Streamlit application:
+Once dependencies are installed and secrets are configured, run the Streamlit application:
 
 ```bash
 streamlit run app.py
 ```
 
-The dashboard should open automatically in your web browser.
+The dashboard should open automatically in your default web browser.
 
 ## Important Considerations
 
-*   **RPC Provider:** The performance and availability of data (especially `trace_block`) heavily depend on your chosen Ethereum RPC provider and its capabilities/limitations. Some public or free endpoints might rate-limit requests or not support tracing methods.
+*   **GCP RPC Provider:** The performance and availability of data (especially `debug_traceBlock*`) heavily depend on your GCP RPC endpoint configuration and potential quotas. Ensure the necessary APIs (`debug` namespace) are enabled if you intend to use the Block Trace feature.
+*   **API Keys:** The Gemini AI and News Feed features require valid API keys configured in secrets. Usage of these APIs may be subject to third-party terms and potential costs associated with Google Cloud or NewsAPI usage limits.
 *   **Simulation:** The "Implant Simulation" tab is purely conceptual and for demonstration purposes. It does *not* involve real cryptographic signing or broadcasting transactions to the network.
-*   **Caching:** Data like token info, balances, and recent events are cached for short periods (defined in `@st.cache_data` / `@st.cache_resource` decorators) to improve performance and reduce RPC load. Refresh buttons or waiting out the cache TTL (Time To Live) will fetch new data.
+*   **Caching:** Data like token info, balances, and recent events are cached for short periods (defined in `@st.cache_data` / `@st.cache_resource` decorators) to improve performance and reduce RPC/API load. Refresh buttons or waiting out the cache TTL (Time To Live) will fetch new data.
 
 ## Disclaimer
 
-This tool is provided for informational and educational purposes only. Interact with blockchain data at your own risk. The simulation features are conceptual and do not represent a functional payment system. Ensure your RPC endpoint is secured appropriately.
+This tool is provided for informational and educational purposes only. Interact with blockchain data at your own risk. The AI responses are generated by Google Gemini and may require verification. The simulation features are conceptual and do not represent a functional payment system. Ensure your API keys and RPC endpoint are secured appropriately.
 
 # PYUSD Transaction Analytics Dashboard using GCP Blockchain RPC
 
