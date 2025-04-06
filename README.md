@@ -110,7 +110,7 @@ An advanced Streamlit dashboard providing real-time and historical analytics for
 
 Once dependencies are installed and secrets are configured, run the Streamlit application (assuming your main script is named `app.py` or similar - adjust if needed):
 
-```streamlit run your_script_name.py # e.g., streamlit run chip_rpc_chat.py```
+```streamlit run your_script_name.py # e.g., streamlit run app.py```
 
 The dashboard should open automatically in your default web browser.
 
