@@ -1,6 +1,6 @@
 # 🧬 PYUSD CyberMatrix Analytics Dashboard 🔗
 
-[Visit PYUSD CyberMatrix](http://pyusd-cybermatrix.streamlit.app)
+[Visit 🧬PYUSD CyberMatrix Analytics Dashboard 🔗](http://pyusd-cybermatrix.streamlit.app)
 
 A Streamlit dashboard providing real-time analytics for PayPal USD (PYUSD) on the Ethereum blockchain, powered by Google Cloud Platform (GCP) Blockchain RPC. This enhanced version integrates a Google Gemini AI assistant and a NewsAPI feed, alongside a conceptual simulation of bio-implant payments.
 
