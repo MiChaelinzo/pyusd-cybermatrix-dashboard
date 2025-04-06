@@ -1894,28 +1894,53 @@ with st.sidebar:
                 st.session_state.messages.append({"role": "user", "content": prompt})
                 with st.chat_message("user"): st.markdown(prompt)
 
-                try:
-                    with st.spinner("🧠 Thinking..."):
-                        # Use non-streaming for simplicity here
-                        resp = st.session_state.gemini_chat.send_message(prompt, stream=False)
-                        # Extract and clean response text
-                        cleaned_txt = "⚠️ Response generation issue."
-                        if resp.candidates and candidate.content and candidate.content.parts:
-                                raw_txt = candidate.content.parts[0].text
-                                cleaned_txt = clean_markdown(raw_txt)
-                        elif resp.prompt_feedback and resp.prompt_feedback.block_reason:
-                             cleaned_txt = f"⚠️ Response blocked: {resp.prompt_feedback.block_reason}"
-                             if resp.prompt_feedback.safety_ratings: cleaned_txt += f" (Ratings: {resp.prompt_feedback.safety_ratings})"
-                        # Add more specific error/block handling if needed based on Gemini API V1 structure
+            try:
+                with st.spinner("🧠 Thinking..."):
+                    resp = st.session_state.gemini_chat.send_message(prompt, stream=False)
 
-                    with st.chat_message("assistant"): st.markdown(cleaned_txt)
-                    st.session_state.messages.append({"role": "assistant", "content": cleaned_txt})
-                    # Consider st.rerun() if UI updates are inconsistent, but be wary of side effects
-                except Exception as e_ai:
-                    st.error(f"AI Assistant Error: {e_ai}", icon="🔥")
-                    print(f"Error during Gemini interaction: {e_ai}")
-            else: st.error("Chat session is not available.", icon="💬")
+                    # Safely extract response text, check for blockage
+                    cleaned_txt = "⚠️ Response generation issue." # Default error
 
+                    # --- CORRECTED LOGIC ---
+                    # First, check if the top-level response indicates blocking
+                    if resp.prompt_feedback and resp.prompt_feedback.block_reason:
+                         cleaned_txt = f"⚠️ Response blocked: {resp.prompt_feedback.block_reason}"
+                         if resp.prompt_feedback.safety_ratings: cleaned_txt += f" (Ratings: {resp.prompt_feedback.safety_ratings})"
+                    # If not blocked at prompt level, check the candidates list
+                    elif resp.candidates: # Check if the list exists and is not empty
+                        candidate = resp.candidates[0] # Assign the first candidate object to the 'candidate' variable
+                        # Now, check the content of this specific candidate
+                        if candidate.content and candidate.content.parts:
+                            raw_txt = candidate.content.parts[0].text
+                            cleaned_txt = clean_markdown(raw_txt)
+                        # If no content, check if the candidate finished for other reasons (e.g., safety)
+                        elif candidate.finish_reason != "STOP":
+                             cleaned_txt = f"⚠️ Response stopped: {candidate.finish_reason}"
+                             # Add safety ratings from the candidate if available
+                             if hasattr(candidate, 'safety_ratings') and candidate.safety_ratings:
+                                 cleaned_txt += f" (Safety: {candidate.safety_ratings})"
+                        # If candidate exists but has no content and finished normally (unlikely but possible)
+                        else:
+                             cleaned_txt = "⚠️ Received empty response from AI."
+
+                    # --- END CORRECTED LOGIC ---
+                    else: # Handle cases where response has no candidates or other unexpected issues
+                         print(f"Gemini response issue: No valid candidates or prompt feedback found. Response: {resp}")
+                         cleaned_txt = "⚠️ Unexpected response format from AI."
+
+
+                # Display assistant response
+                with st.chat_message("assistant"): st.markdown(cleaned_txt)
+                # Add response to history
+                st.session_state.messages.append({"role": "assistant", "content": cleaned_txt})
+
+            except Exception as e_ai:
+                st.error(f"AI Assistant Error: {e_ai}", icon="🔥")
+                print(f"Error during Gemini interaction: {e_ai}")
+                # Optionally add the error to the chat display for user visibility
+                with st.chat_message("assistant"): st.error(f"An error occurred: {e_ai}")
+                st.session_state.messages.append({"role": "assistant", "content": f"Error: {e_ai}"})
+                
     # Sidebar Footer
     st.markdown("---")
     st.caption(f"© {datetime.now().year} CyberMatrix v2.0 | GCP {'OK' if rpc_ok else 'FAIL'} | Contract {'OK' if contract_ok else 'FAIL'} | NewsAPI {'OK' if NEWSAPI_API_KEY else 'NA'} | AI {'OK' if gemini_model else 'NA'}")
