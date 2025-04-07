@@ -136,8 +136,6 @@ This tool is for informational and educational purposes only. Interact with bloc
 
 This project aims to provide real-time and historical analytics for PayPal's PYUSD stablecoin using Google Cloud Platform (GCP) services.  We leverage GCP's Blockchain RPC service to access Ethereum blockchain data and explore potential integration with Google BigQuery for historical analysis.
 
-This is a submission for the StackUp Hackathon, focusing on the challenge to build innovative projects using GCP Blockchain RPC and PYUSD.
-
 ## Tech Stack
 
 *   **GCP Blockchain RPC:** For accessing real-time Ethereum blockchain data.
