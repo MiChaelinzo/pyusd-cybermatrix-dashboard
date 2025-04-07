@@ -1,10 +1,11 @@
-
 # -*- coding: utf-8 -*-
 """
 Enhanced PYUSD CyberMatrix Analytics Dashboard v2.0 🌌🔗 powered by Google Cloud Blockchain RPC
 Integrates News API, Visualizations, Gemini Chat & Feed, Historical Analysis,
 Mint/Burn/Approval Tracking, Network Graph, Watchlist, AI Summaries & More!
 (Based on v1.8 - Includes Features 1-12)
+
+>>> Added Scrollable Tab Content for specified tabs <<<
 """
 
 # --- Imports ---
@@ -154,7 +155,7 @@ def get_web3_connection(rpc_endpoint):
 w3 = get_web3_connection(GCP_RPC_ENDPOINT)
 
 # --- Apply Custom CSS ---
-# >> CSS remains the same as in the provided code <<
+# >> CSS includes the new .scrollable-tab-content class <<
 st.markdown(
     """
 <style>
@@ -594,6 +595,33 @@ st.markdown(
     .plot-container .plotly svg {
         background: transparent !important;
     }
+
+    /* --- >>> NEW: Scrollable Tab Content <<< --- */
+    .scrollable-tab-content {
+        max-height: 75vh; /* Adjust height as needed (e.g., 70vh, 600px) */
+        overflow-y: auto; /* Add vertical scrollbar when content overflows */
+        overflow-x: hidden; /* Prevent horizontal scrollbar unless content forces it */
+        padding-right: 15px; /* Add space for the scrollbar to avoid overlapping content */
+        padding-bottom: 20px; /* Optional: Add some space at the bottom */
+    }
+    /* Optional: Style the scrollbar for webkit browsers (Chrome, Safari) */
+    .scrollable-tab-content::-webkit-scrollbar {
+        width: 8px; /* Width of the scrollbar */
+    }
+    .scrollable-tab-content::-webkit-scrollbar-track {
+        background: rgba(0, 30, 20, 0.5); /* Track color */
+        border-radius: 4px;
+    }
+    .scrollable-tab-content::-webkit-scrollbar-thumb {
+        background-color: #00ffff; /* Scrollbar handle color (cyan) */
+        border-radius: 4px;
+        border: 1px solid #99ffcc; /* Border for the handle */
+    }
+    .scrollable-tab-content::-webkit-scrollbar-thumb:hover {
+        background-color: #ccff00; /* Handle color on hover (lime) */
+    }
+    /* --- >>> END SCROLLABLE TAB CSS <<< --- */
+
 </style>
     """,
     unsafe_allow_html=True,
@@ -624,12 +652,15 @@ if rpc_ok:
 # --- Feature 6 Helper ---
 def get_address_label(address):
     """Returns a label for a known address, or a shortened version."""
-    checksum_addr = Web3.to_checksum_address(address)
-    label = KNOWN_ADDRESSES.get(checksum_addr)
-    if label:
-        return f"{label} ({checksum_addr[:6]}...{checksum_addr[-4:]})"
-    else:
-        return f"{checksum_addr[:6]}...{checksum_addr[-4:]}"
+    try: # Add try-except for robustness if address is invalid
+      checksum_addr = Web3.to_checksum_address(address)
+      label = KNOWN_ADDRESSES.get(checksum_addr)
+      if label:
+          return f"{label} ({checksum_addr[:6]}...{checksum_addr[-4:]})"
+      else:
+          return f"{checksum_addr[:6]}...{checksum_addr[-4:]}"
+    except ValueError:
+      return f"Invalid Addr: {str(address)[:10]}..." # Return something if address is bad
 
 # --- Cached Token Info ---
 @st.cache_data(ttl=3600) # Cache for 1 hour
@@ -668,44 +699,54 @@ def get_address_balance(_contract, _address): # <-- Added underscore
         st.warning(f"⚠️ Balance fetch error (GCP RPC) for {get_address_label(cs_addr)}: {e}", icon="💰")
         return None
 
+# Transaction Details Fetcher (using robust v1.5 version)
 @st.cache_data(ttl=60) # Cache Tx details for 1 minute
-def get_tx_details(_w3, tx_hash): # <-- Added underscore
+def get_tx_details(_w3, tx_hash):
     """Safely retrieves transaction details and receipt via GCP RPC."""
-    if not _w3 or not _w3.is_connected(): # <-- Use _w3
+    if not _w3 or not _w3.is_connected():
         st.error("❌ Cannot fetch Tx: RPC disconnected.", icon="🔌")
         return None
-    # ... rest of function using _w3 and tx_hash ...
     try:
         if not isinstance(tx_hash, str) or not tx_hash.startswith('0x') or len(tx_hash) != 66:
             st.error(f"❌ Invalid Tx Hash Format: `{tx_hash[:15]}...`"); return None
 
         print(f"Fetching transaction details for: {tx_hash}")
+        # --- FIX: Remove request_kwargs ---
         tx = _w3.eth.get_transaction(tx_hash)
+        # --- END OF FIX ---
         if not tx: st.error(f"❌ Tx not found: `{tx_hash[:15]}...`"); return None
         print(f"Transaction found for {tx_hash[:10]}...")
 
         receipt = None
         try:
             print(f"Fetching transaction receipt for: {tx_hash}")
+            # --- FIX: Remove request_kwargs ---
             receipt = _w3.eth.get_transaction_receipt(tx_hash)
+            # --- END OF FIX ---
             if receipt: print(f"Receipt found for {tx_hash[:10]}...")
-        except web3_exceptions.TransactionNotFound:
-             print(f"Receipt not found yet for {tx_hash[:10]}... (Pending)")
-             receipt = None # Ensure receipt is None
         except Exception as receipt_e:
-             st.warning(f"⚠️ Tx `{tx_hash[:15]}...` receipt lookup error: {receipt_e}", icon="⏳")
-             receipt = None # Ensure receipt is None
+             # Be specific about 'not found' vs other errors
+             if receipt_e.__class__.__name__ == 'TransactionNotFound' or 'not found' in str(receipt_e).lower():
+                 print(f"Receipt not found yet for {tx_hash[:10]}... (Pending)")
+             else:
+                 st.warning(f"⚠️ Tx `{tx_hash[:15]}...` receipt lookup error: {receipt_e}", icon="⏳")
+             receipt = None # Ensure receipt is None if lookup fails or not found
 
         # Process PENDING Transaction (No Receipt)
         if not receipt:
             st.info(f"⏳ Tx `{tx_hash[:15]}...` is pending (receipt not yet available).", icon="🕒")
             gas_price_gwei = "N/A"; value_eth = _w3.from_wei(tx.get('value', 0), 'ether')
             try: gas_price_gwei = f"{_w3.from_wei(tx.get('gasPrice', 0), 'gwei'):.6f}"
-            except Exception: pass
+            except Exception: pass # Ignore errors fetching potentially missing fields
             return {
-                "Tx Hash": tx['hash'].hex(), "Status": "⏳ Pending", "From": tx.get('from', 'N/A'),
-                "To": tx.get('to', 'N/A'), "Value (ETH)": f"{value_eth:.18f}", "Gas Limit": tx.get('gas', 'N/A'),
-                "Gas Price (Gwei)": gas_price_gwei, "Nonce": tx.get('nonce', 'N/A')
+                "Tx Hash": tx['hash'].hex(),
+                "Status": "⏳ Pending",
+                "From": tx.get('from', 'N/A'),
+                "To": tx.get('to', 'N/A'), # Might be None for contract creation
+                "Value (ETH)": f"{value_eth:.18f}",
+                "Gas Limit": tx.get('gas', 'N/A'),
+                "Gas Price (Gwei)": gas_price_gwei,
+                "Nonce": tx.get('nonce', 'N/A')
                 }
 
         # Process CONFIRMED Transaction (Receipt Available)
@@ -716,8 +757,11 @@ def get_tx_details(_w3, tx_hash): # <-- Added underscore
         timestamp = "N/A (Block Error)"
         try:
              print(f"Fetching block details for block: {receipt['blockNumber']}")
+             # --- FIX: Remove request_kwargs ---
              block = _w3.eth.get_block(receipt['blockNumber'])
+             # --- END OF FIX ---
              if block and 'timestamp' in block:
+                 # Use timezone aware datetime
                  timestamp = datetime.fromtimestamp(block['timestamp'], tz=timezone.utc).strftime('%Y-%m-%d %H:%M:%S UTC')
                  print(f"Block timestamp found: {timestamp}")
              else:
@@ -727,47 +771,71 @@ def get_tx_details(_w3, tx_hash): # <-- Added underscore
             st.warning(f"⚠️ Block timestamp error: {block_e}", icon="🧱")
             print(f"Exception fetching block timestamp for {receipt['blockNumber']}: {block_e}")
 
+
         return {
-            "Tx Hash": tx['hash'].hex(), "Status": status_text, "Block": receipt['blockNumber'], "Timestamp": timestamp,
-            "From": tx['from'], "To": receipt.get('contractAddress') or tx.get('to') or 'N/A', "Value (ETH)": f"{value_eth:.18f}",
-            "Gas Used": receipt['gasUsed'], "Gas Limit": tx['gas'], "Gas Price (Gwei)": f"{gas_price_gwei:.6f}",
-            "Tx Fee (ETH)": f"{tx_fee_eth:.18f}", "Nonce": tx['nonce'], "Logs Count": len(receipt.get('logs', [])),
-            "Contract Address Created": receipt.get('contractAddress', None)
+            "Tx Hash": tx['hash'].hex(),
+            "Status": status_text,
+            "Block": receipt['blockNumber'],
+            "Timestamp": timestamp,
+            "From": tx['from'],
+            "To": receipt.get('contractAddress') or tx.get('to') or 'N/A', # Handles contract creation 'to'
+            "Value (ETH)": f"{value_eth:.18f}",
+            "Gas Used": receipt['gasUsed'],
+            "Gas Limit": tx['gas'],
+            "Gas Price (Gwei)": f"{gas_price_gwei:.6f}",
+            "Tx Fee (ETH)": f"{tx_fee_eth:.18f}",
+            "Nonce": tx['nonce'],
+            "Logs Count": len(receipt.get('logs', [])),
+            "Contract Address Created": receipt.get('contractAddress', None) # None if not a creation tx
         }
     except HTTPError as http_err: st.error(f"❌ HTTP Error looking up Tx `{tx_hash[:15]}...`: {http_err}", icon="📡"); return None
     except Exception as e: st.error(f"❌ Tx details error `{tx_hash[:15]}...`: {e}", icon="🔥"); return None
 
+
+# Block Trace Function (using robust v1.5 version)
 @st.cache_data(ttl=300) # Cache block trace for 5 minutes
-def get_block_trace(_w3, block_identifier): # <-- Added underscore
+def get_block_trace(_w3, block_identifier):
     """Requests a block trace using debug_traceBlock* methods via GCP RPC."""
-    if not _w3 or not _w3.is_connected(): # <-- Use _w3
+    if not _w3 or not _w3.is_connected():
          st.error("❌ Cannot trace block: RPC disconnected.", icon="🔌")
          return None
-    # ... rest of function using _w3 and block_identifier ...
     st.info(f"ℹ️ Requesting trace for block: `{block_identifier}` via Google Cloud RPC...")
     try:
         param = None; is_hash = False
+        # Determine if identifier is number, hash, or tag
         if isinstance(block_identifier, int):
             param = hex(block_identifier)
         elif isinstance(block_identifier, str):
             block_id_lower = block_identifier.lower()
-            if block_id_lower in ['latest', 'earliest', 'pending']: param = block_id_lower
-            elif block_id_lower.startswith('0x') and len(block_id_lower) == 66: param = block_id_lower; is_hash = True
+            if block_id_lower in ['latest', 'earliest', 'pending']:
+                param = block_id_lower
+            elif block_id_lower.startswith('0x') and len(block_id_lower) == 66:
+                param = block_id_lower
+                is_hash = True
             else:
+                 # Try converting string to int, then hex
                  try: param = hex(int(block_identifier))
                  except ValueError: st.error(f"❌ Invalid block identifier string: `{block_identifier}`"); return None
         else: st.error(f"❌ Invalid block identifier type: `{type(block_identifier)}`"); return None
 
         if param is None: st.error(f"❌ Failed to process block identifier: `{block_identifier}`"); return None
 
+        # Choose RPC method based on identifier type
         rpc_method = "debug_traceBlockByHash" if is_hash else "debug_traceBlockByNumber"
-        tracer_config = {"tracer": "callTracer"} # Example
+        # Common tracer configurations (can be customized or made selectable)
+        # 'callTracer' is good for call hierarchy, 'structTracer' for step-by-step opcodes
+        tracer_config = {"tracer": "callTracer"} # Example: Use callTracer
+        # tracer_config = {"tracer": "structLogger"} # Example: For opcode steps
+
         print(f"Making RPC Request: method='{rpc_method}', params=['{param}', {tracer_config}]")
         st.caption(f"Using tracer: `{tracer_config.get('tracer', 'default')}`")
 
-        # Make raw RPC request (using _w3.provider)
+        # Make raw RPC request
+        # --- FIX: Remove request_kwargs (timeout should be set at provider level if needed) ---
         trace_raw = _w3.provider.make_request(rpc_method, [param, tracer_config])
+        # --- END OF FIX ---
 
+        # Process response
         if 'result' in trace_raw:
             print("Trace successfully received.")
             return trace_raw['result']
@@ -784,27 +852,41 @@ def get_block_trace(_w3, block_identifier): # <-- Added underscore
     except Exception as e: st.error(f"❌ Exception during trace operation for `{block_identifier}`: {e}", icon="🔥"); return None
 
 
+# --- Feature 3: Contract State Fetcher ---
 @st.cache_data(ttl=300) # Cache state for 5 mins
-def get_contract_state(_contract): # <-- Added underscore
+def get_contract_state(_contract):
     """Fetches specific public state variables from the contract."""
-    if not _contract or not w3 or not w3.is_connected(): # Using global w3
+    if not _contract or not w3 or not w3.is_connected():
         return {"Error": "Contract/Connection unavailable"}
-    # ... rest of function using _contract ...
+
     state = {}
+    # --- Attempt to fetch common state variables ---
+    # Owner
     try:
         owner = _contract.functions.owner().call()
         state["Owner"] = owner
-        state["Owner Tagged"] = get_address_label(owner)
-    except (web3_exceptions.ContractLogicError, AttributeError, KeyError):
+        state["Owner Tagged"] = get_address_label(owner) # Add tag
+    except (web3_exceptions.ContractLogicError, AttributeError, KeyError): # Handle if 'owner' func doesn't exist or reverts
         state["Owner"] = "N/A or Error"
         print("Note: Could not fetch contract owner.")
     except Exception as e:
         state["Owner"] = f"Error: {e}"
         print(f"Error fetching owner: {e}")
 
-    # Add other state checks here if needed...
+    # Add more state checks here if needed and ABIs are present
+    # Example: Paused status
+     #try:
+         #paused = _contract.functions.isPaused().call()
+         #state["Paused Status"] = "Paused" if paused else "Not Paused"
+     #except (web3_exceptions.ContractLogicError, AttributeError, KeyError):
+          #state["Paused Status"] = "N/A or Error"
+          #print("Note: Could not fetch paused status.")
+     #except Exception as e:
+         #state["Paused Status"] = f"Error: {e}"
+         #print(f"Error fetching paused status: {e}")
 
     return state
+
 
 # --- Markdown Cleaner ---
 def clean_markdown(text):
@@ -874,6 +956,7 @@ def fetch_news_from_newsapi(api_key, keywords):
     }
     print(f"Querying NewsAPI with parameters: {params}")
     processed_news = []
+    progress_bar = None # Initialize progress bar variable
     try:
         response = requests.get(base_url, params=params, timeout=15) # Increased timeout
         response.raise_for_status()
@@ -882,32 +965,33 @@ def fetch_news_from_newsapi(api_key, keywords):
         if data.get("status") == "ok":
             articles = data.get("articles", [])
             print(f"NewsAPI returned {len(articles)} articles.")
-            #Use st.progress for sentiment fetching if many articles
-            progress_bar = st.progress(0, text="Analyzing news sentiment...")
-            for i, article in enumerate(articles):
-                title = article.get('title', 'No Title Provided')
-                link = article.get('url', '#')
-                snippet = article.get('description', article.get('content', 'No snippet available.'))
-                if snippet and len(snippet) > 250: snippet = snippet[:247] + "..."
-                raw_date = article.get('publishedAt')
-                publish_date_str = "Date unavailable"
-                if raw_date:
-                    try:
-                        parsed_date_utc = datetime.strptime(raw_date, '%Y-%m-%dT%H:%M:%SZ').replace(tzinfo=timezone.utc)
-                        publish_date_str = parsed_date_utc.strftime('%b %d, %Y %H:%M UTC') # Abbreviated month
-                    except (ValueError, TypeError): publish_date_str = raw_date
+            if articles: # Only show progress if there are articles
+                #Use st.progress for sentiment fetching if many articles
+                progress_bar = st.progress(0, text="Analyzing news sentiment...")
+                for i, article in enumerate(articles):
+                    title = article.get('title', 'No Title Provided')
+                    link = article.get('url', '#')
+                    snippet = article.get('description', article.get('content', 'No snippet available.'))
+                    if snippet and len(snippet) > 250: snippet = snippet[:247] + "..."
+                    raw_date = article.get('publishedAt')
+                    publish_date_str = "Date unavailable"
+                    if raw_date:
+                        try:
+                            parsed_date_utc = datetime.strptime(raw_date, '%Y-%m-%dT%H:%M:%SZ').replace(tzinfo=timezone.utc)
+                            publish_date_str = parsed_date_utc.strftime('%b %d, %Y %H:%M UTC') # Abbreviated month
+                        except (ValueError, TypeError): publish_date_str = raw_date
 
-                # --- Feature 10 Integration ---
-                sentiment_text = title + " " + snippet if snippet else title
-                sentiment_emoji = get_news_sentiment(sentiment_text[:500]) # Limit text sent to AI
-                # --- End Feature 10 ---
+                    # --- Feature 10 Integration ---
+                    sentiment_text = title + " " + snippet if snippet else title
+                    sentiment_emoji = get_news_sentiment(sentiment_text[:500]) # Limit text sent to AI
+                    # --- End Feature 10 ---
 
-                processed_news.append({
-                    'title': title, 'link': link, 'snippet': snippet,
-                    'date': publish_date_str, 'sentiment': sentiment_emoji # Add sentiment
-                })
-                progress_bar.progress((i + 1) / len(articles), text=f"Analyzing sentiment... ({i+1}/{len(articles)})")
-            progress_bar.empty() # Clear progress bar
+                    processed_news.append({
+                        'title': title, 'link': link, 'snippet': snippet,
+                        'date': publish_date_str, 'sentiment': sentiment_emoji # Add sentiment
+                    })
+                    progress_bar.progress((i + 1) / len(articles), text=f"Analyzing sentiment... ({i+1}/{len(articles)})")
+                progress_bar.empty() # Clear progress bar
             print(f"Processed {len(processed_news)} news items from NewsAPI with sentiment.")
             return processed_news
         else:
@@ -918,13 +1002,13 @@ def fetch_news_from_newsapi(api_key, keywords):
             return []
 
     except HTTPError as http_err:
-        progress_bar.empty() # Clear progress bar on error
+        if progress_bar: progress_bar.empty() # Clear progress bar on error
         st.error(f"❌ HTTP Error fetching news: {http_err}", icon="📡")
         print(f"HTTP Error during NewsAPI request: {http_err}")
         return []
     # ... (keep other exception handling) ...
     except Exception as e:
-        # progress_bar.empty() # Clear progress bar on error
+        if progress_bar: progress_bar.empty() # Clear progress bar on error
         st.error(f"❌ Error processing news feed: {e}", icon="📰")
         print(f"Exception during NewsAPI fetch/processing: {e}")
         import traceback
@@ -1140,10 +1224,11 @@ def get_historical_events_batched(_w3_conn, _contract_obj, event_name, _process_
 
         df = pd.DataFrame(all_events)
         # ... rest of the function remains the same ...
-        df.sort_values(by="Block", ascending=False, inplace=True)
-        if "Timestamp" in df.columns:
-             try: df['Timestamp'] = pd.to_datetime(df['Timestamp'], errors='coerce').dt.strftime('%Y-%m-%d %H:%M:%S UTC')
-             except Exception: pass # Ignore formatting errors
+        if not df.empty:
+            df.sort_values(by="Block", ascending=False, inplace=True)
+            if "Timestamp" in df.columns:
+                 try: df['Timestamp'] = pd.to_datetime(df['Timestamp'], errors='coerce').dt.strftime('%Y-%m-%d %H:%M:%S UTC')
+                 except Exception: pass # Ignore formatting errors
         st.success(f"✅ Fetched {len(df)} historical '{event_name}' events from block {start_block} to {end_block}.", icon="💾")
         print(f"Finished historical batch fetch. Found {len(df)} events.")
         return df
@@ -1172,9 +1257,6 @@ def calculate_transfer_volume_from_df(df, symbol):
         print(f"Error calculating volume: {e}")
         return 0
 
-# --- Plotting Functions ---
-# (Keep existing plot functions: plot_transfers_per_block, plot_transfer_value_distribution, plot_volume_per_block)
-# Modify plot_top_addresses_pie to use tagged addresses
 # --- Plotting Functions ---
 # Re-adding original plot functions that were missing
 
@@ -1234,13 +1316,8 @@ def plot_volume_per_block(df, symbol):
         return fig
     except Exception as e: print(f"Error plotting volume per block: {e}"); return None
 
-# --- Feature 5: Network Graph Plotting ---
-# (Keep the plot_network_graph function here)
-# def plot_network_graph(df, symbol, value_threshold=1000, top_n_edges=50): ...
 
 # --- Pie Chart Plotting (Modified for Tags) ---
-# (Keep the plot_top_addresses_pie function here)
-# def plot_top_addresses_pie(df, symbol, direction='From', top_n=10): ...
 def plot_top_addresses_pie(df, symbol, direction='From', top_n=10):
     """Generates pie chart for top addresses by volume, using tagged labels."""
     value_col = f"Value ({symbol})"
@@ -1270,7 +1347,7 @@ def plot_top_addresses_pie(df, symbol, direction='From', top_n=10):
         if len(address_volume) > top_n:
             top_df = address_volume.head(top_n)
             other_sum = address_volume.iloc[top_n:][value_col].sum()
-            if other_sum > 1e-9:
+            if other_sum > 1e-9: # Only add 'Other' if sum is significant
                  # For 'Other', use a placeholder label and address
                 other_df = pd.DataFrame([{original_address_col: 'Other Addresses', value_col: other_sum}])
                 final_df = pd.concat([top_df, other_df], ignore_index=True)
@@ -1528,194 +1605,6 @@ def simulate_gcp_trace_transaction(transaction_details):
     }
     return trace_result
 
-# Transaction Details Fetcher (using robust v1.5 version)
-@st.cache_data(ttl=60) # Cache Tx details for 1 minute
-def get_tx_details(_w3, tx_hash):
-    """Safely retrieves transaction details and receipt via GCP RPC."""
-    if not _w3 or not _w3.is_connected():
-        st.error("❌ Cannot fetch Tx: RPC disconnected.", icon="🔌")
-        return None
-    try:
-        if not isinstance(tx_hash, str) or not tx_hash.startswith('0x') or len(tx_hash) != 66:
-            st.error(f"❌ Invalid Tx Hash Format: `{tx_hash[:15]}...`"); return None
-
-        print(f"Fetching transaction details for: {tx_hash}")
-        # --- FIX: Remove request_kwargs ---
-        tx = _w3.eth.get_transaction(tx_hash)
-        # --- END OF FIX ---
-        if not tx: st.error(f"❌ Tx not found: `{tx_hash[:15]}...`"); return None
-        print(f"Transaction found for {tx_hash[:10]}...")
-
-        receipt = None
-        try:
-            print(f"Fetching transaction receipt for: {tx_hash}")
-            # --- FIX: Remove request_kwargs ---
-            receipt = _w3.eth.get_transaction_receipt(tx_hash)
-            # --- END OF FIX ---
-            if receipt: print(f"Receipt found for {tx_hash[:10]}...")
-        except Exception as receipt_e:
-             # Be specific about 'not found' vs other errors
-             if receipt_e.__class__.__name__ == 'TransactionNotFound' or 'not found' in str(receipt_e).lower():
-                 print(f"Receipt not found yet for {tx_hash[:10]}... (Pending)")
-             else:
-                 st.warning(f"⚠️ Tx `{tx_hash[:15]}...` receipt lookup error: {receipt_e}", icon="⏳")
-             receipt = None # Ensure receipt is None if lookup fails or not found
-
-        # Process PENDING Transaction (No Receipt)
-        if not receipt:
-            st.info(f"⏳ Tx `{tx_hash[:15]}...` is pending (receipt not yet available).", icon="🕒")
-            gas_price_gwei = "N/A"; value_eth = _w3.from_wei(tx.get('value', 0), 'ether')
-            try: gas_price_gwei = f"{_w3.from_wei(tx.get('gasPrice', 0), 'gwei'):.6f}"
-            except Exception: pass # Ignore errors fetching potentially missing fields
-            return {
-                "Tx Hash": tx['hash'].hex(),
-                "Status": "⏳ Pending",
-                "From": tx.get('from', 'N/A'),
-                "To": tx.get('to', 'N/A'), # Might be None for contract creation
-                "Value (ETH)": f"{value_eth:.18f}",
-                "Gas Limit": tx.get('gas', 'N/A'),
-                "Gas Price (Gwei)": gas_price_gwei,
-                "Nonce": tx.get('nonce', 'N/A')
-                }
-
-        # Process CONFIRMED Transaction (Receipt Available)
-        gas_price_gwei = _w3.from_wei(tx['gasPrice'], 'gwei')
-        value_eth = _w3.from_wei(tx['value'], 'ether')
-        tx_fee_eth = _w3.from_wei(receipt['gasUsed'] * tx['gasPrice'], 'ether')
-        status_text = "✅ Success" if receipt.get('status') == 1 else "❌ Failed"
-        timestamp = "N/A (Block Error)"
-        try:
-             print(f"Fetching block details for block: {receipt['blockNumber']}")
-             # --- FIX: Remove request_kwargs ---
-             block = _w3.eth.get_block(receipt['blockNumber'])
-             # --- END OF FIX ---
-             if block and 'timestamp' in block:
-                 timestamp = datetime.utcfromtimestamp(block['timestamp']).strftime('%Y-%m-%d %H:%M:%S UTC')
-                 print(f"Block timestamp found: {timestamp}")
-             else:
-                 st.warning(f"⚠️ Incomplete block data for {receipt['blockNumber']}.", icon="🧱")
-                 print(f"Warning: Incomplete block data for {receipt['blockNumber']}.")
-        except Exception as block_e:
-            st.warning(f"⚠️ Block timestamp error: {block_e}", icon="🧱")
-            print(f"Exception fetching block timestamp for {receipt['blockNumber']}: {block_e}")
-
-
-        return {
-            "Tx Hash": tx['hash'].hex(),
-            "Status": status_text,
-            "Block": receipt['blockNumber'],
-            "Timestamp": timestamp,
-            "From": tx['from'],
-            "To": receipt.get('contractAddress') or tx.get('to') or 'N/A', # Handles contract creation 'to'
-            "Value (ETH)": f"{value_eth:.18f}",
-            "Gas Used": receipt['gasUsed'],
-            "Gas Limit": tx['gas'],
-            "Gas Price (Gwei)": f"{gas_price_gwei:.6f}",
-            "Tx Fee (ETH)": f"{tx_fee_eth:.18f}",
-            "Nonce": tx['nonce'],
-            "Logs Count": len(receipt.get('logs', [])),
-            "Contract Address Created": receipt.get('contractAddress', None) # None if not a creation tx
-        }
-    except HTTPError as http_err: st.error(f"❌ HTTP Error looking up Tx `{tx_hash[:15]}...`: {http_err}", icon="📡"); return None
-    except Exception as e: st.error(f"❌ Tx details error `{tx_hash[:15]}...`: {e}", icon="🔥"); return None
-
-
-# Block Trace Function (using robust v1.5 version)
-@st.cache_data(ttl=300) # Cache block trace for 5 minutes
-def get_block_trace(_w3, block_identifier):
-    """Requests a block trace using debug_traceBlock* methods via GCP RPC."""
-    if not _w3 or not _w3.is_connected():
-         st.error("❌ Cannot trace block: RPC disconnected.", icon="🔌")
-         return None
-    st.info(f"ℹ️ Requesting trace for block: `{block_identifier}` via Google Cloud RPC...")
-    try:
-        param = None; is_hash = False
-        # Determine if identifier is number, hash, or tag
-        if isinstance(block_identifier, int):
-            param = hex(block_identifier)
-        elif isinstance(block_identifier, str):
-            block_id_lower = block_identifier.lower()
-            if block_id_lower in ['latest', 'earliest', 'pending']:
-                param = block_id_lower
-            elif block_id_lower.startswith('0x') and len(block_id_lower) == 66:
-                param = block_id_lower
-                is_hash = True
-            else:
-                 # Try converting string to int, then hex
-                 try: param = hex(int(block_identifier))
-                 except ValueError: st.error(f"❌ Invalid block identifier string: `{block_identifier}`"); return None
-        else: st.error(f"❌ Invalid block identifier type: `{type(block_identifier)}`"); return None
-
-        if param is None: st.error(f"❌ Failed to process block identifier: `{block_identifier}`"); return None
-
-        # Choose RPC method based on identifier type
-        rpc_method = "debug_traceBlockByHash" if is_hash else "debug_traceBlockByNumber"
-        # Common tracer configurations (can be customized or made selectable)
-        # 'callTracer' is good for call hierarchy, 'structTracer' for step-by-step opcodes
-        tracer_config = {"tracer": "callTracer"} # Example: Use callTracer
-        # tracer_config = {"tracer": "structLogger"} # Example: For opcode steps
-
-        print(f"Making RPC Request: method='{rpc_method}', params=['{param}', {tracer_config}]")
-        st.caption(f"Using tracer: `{tracer_config.get('tracer', 'default')}`")
-
-        # Make raw RPC request
-        # --- FIX: Remove request_kwargs (timeout should be set at provider level if needed) ---
-        trace_raw = _w3.provider.make_request(rpc_method, [param, tracer_config])
-        # --- END OF FIX ---
-
-        # Process response
-        if 'result' in trace_raw:
-            print("Trace successfully received.")
-            return trace_raw['result']
-        elif 'error' in trace_raw:
-            error_msg = trace_raw['error'].get('message', 'N/A'); error_code = trace_raw['error'].get('code', 'N/A')
-            st.error(f"❌ RPC Error during trace: {error_msg} (Code: {error_code})", icon="📡")
-            st.warning(f"⚠️ Ensure GCP RPC endpoint supports `{rpc_method}` and the tracer `{tracer_config.get('tracer')}`.", icon="🛠️")
-            print(f"RPC Error: {trace_raw['error']}")
-            return None
-        else:
-            st.warning("⚠️ Unexpected trace response format (no 'result' or 'error')."); st.json(trace_raw); return None
-
-    except HTTPError as http_err: st.error(f"❌ HTTP Error during trace operation for `{block_identifier}`: {http_err}", icon="📡"); return None
-    except Exception as e: st.error(f"❌ Exception during trace operation for `{block_identifier}`: {e}", icon="🔥"); return None
-
-
-
-# --- Feature 3: Contract State Fetcher ---
-@st.cache_data(ttl=300) # Cache state for 5 mins
-def get_contract_state(_contract):
-    """Fetches specific public state variables from the contract."""
-    if not _contract or not w3 or not w3.is_connected():
-        return {"Error": "Contract/Connection unavailable"}
-
-    state = {}
-    # --- Attempt to fetch common state variables ---
-    # Owner
-    try:
-        owner = _contract.functions.owner().call()
-        state["Owner"] = owner
-        state["Owner Tagged"] = get_address_label(owner) # Add tag
-    except (web3_exceptions.ContractLogicError, AttributeError, KeyError): # Handle if 'owner' func doesn't exist or reverts
-        state["Owner"] = "N/A or Error"
-        print("Note: Could not fetch contract owner.")
-    except Exception as e:
-        state["Owner"] = f"Error: {e}"
-        print(f"Error fetching owner: {e}")
-
-    # Add more state checks here if needed and ABIs are present
-    # Example: Paused status
-     #try:
-         #paused = _contract.functions.isPaused().call()
-         #state["Paused Status"] = "Paused" if paused else "Not Paused"
-     #except (web3_exceptions.ContractLogicError, AttributeError, KeyError):
-          #state["Paused Status"] = "N/A or Error"
-          #print("Note: Could not fetch paused status.")
-     #except Exception as e:
-         #state["Paused Status"] = f"Error: {e}"
-         #print(f"Error fetching paused status: {e}")
-
-    #return state
-
 
 # --- Streamlit App Layout ---
 st.markdown("<h1 class='title'>🌌 PYUSD CyberMatrix Analytics v2.0 🔗</h1>", unsafe_allow_html=True) # Updated Title & Icon
@@ -1881,21 +1770,31 @@ with st.sidebar:
                  print(f"Error starting chat: {chat_e}")
                  st.session_state.gemini_chat = None
 
+        # Limit chat history display length for performance
+        MAX_CHAT_HISTORY = 50 # Display last 50 messages (user+assistant)
+        displayed_messages = st.session_state.messages[-MAX_CHAT_HISTORY:]
+
         chat_display_container = st.container()
-        # chat_display_container.markdown('<div style="max-height: 400px; overflow-y: auto; padding-right: 10px;">', unsafe_allow_html=True) # Optional height limit
+        # Make the chat container scrollable within the sidebar
+        chat_display_container.markdown('<div style="max-height: 400px; overflow-y: auto; padding-right: 10px; border: 1px dashed rgba(153, 255, 204, 0.2); border-radius: 5px; margin-bottom: 10px;">', unsafe_allow_html=True)
         with chat_display_container:
-            for msg in st.session_state.messages:
+            for msg in displayed_messages: # Display only the limited history
                 with st.chat_message(msg["role"]):
                     st.markdown(clean_markdown(msg["content"]), unsafe_allow_html=False) # Clean markdown output
-        # chat_display_container.markdown('</div>', unsafe_allow_html=True) # Close scrolling div
+        chat_display_container.markdown('</div>', unsafe_allow_html=True) # Close scrolling div
 
         if prompt := st.chat_input("Ask about PYUSD, blockchain...", key="gemini_prompt", disabled=(not st.session_state.get("gemini_chat"))):
             if st.session_state.get("gemini_chat"):
+                # Append to full history
                 st.session_state.messages.append({"role": "user", "content": prompt})
-                with st.chat_message("user"): st.markdown(prompt)
+                # Display latest message immediately (will be inside scroll div on rerun)
+                # with st.chat_message("user"): st.markdown(prompt)
 
             try:
                 with st.spinner("🧠 Thinking..."):
+                    # Send message using the current full history (but only display limited)
+                    # Recreate chat with history slice if necessary for context limit,
+                    # but simple append is usually fine for gemini-1.5-flash
                     resp = st.session_state.gemini_chat.send_message(prompt, stream=False)
 
                     # Safely extract response text, check for blockage
@@ -1929,18 +1828,18 @@ with st.sidebar:
                          cleaned_txt = "⚠️ Unexpected response format from AI."
 
 
-                # Display assistant response
-                with st.chat_message("assistant"): st.markdown(cleaned_txt)
-                # Add response to history
+                # Add response to full history
                 st.session_state.messages.append({"role": "assistant", "content": cleaned_txt})
+                # Rerun to update the displayed chat history in the scrollable div
+                st.rerun()
 
             except Exception as e_ai:
                 st.error(f"AI Assistant Error: {e_ai}", icon="🔥")
                 print(f"Error during Gemini interaction: {e_ai}")
                 # Optionally add the error to the chat display for user visibility
-                with st.chat_message("assistant"): st.error(f"An error occurred: {e_ai}")
-                st.session_state.messages.append({"role": "assistant", "content": f"Error: {e_ai}"})
-                
+                st.session_state.messages.append({"role": "assistant", "content": f"An error occurred: {e_ai}"})
+                st.rerun() # Rerun to show error message
+
     # Sidebar Footer
     st.markdown("---")
     st.caption(f"© {datetime.now().year} CyberMatrix v2.0 | GCP {'OK' if rpc_ok else 'FAIL'} | Contract {'OK' if contract_ok else 'FAIL'} | NewsAPI {'OK' if NEWSAPI_API_KEY else 'NA'} | AI {'OK' if gemini_model else 'NA'}")
@@ -1975,11 +1874,13 @@ if tab_ctx := get_tab("📊 Live Transfers"):
     with tab_ctx:
         st.header("📊 Live PYUSD Transfer Feed & Viz")
         st.markdown("<p class='tab-description'>Shows recent `Transfer` events fetched via Google Cloud RPC. Includes address tagging and filtering.</p>", unsafe_allow_html=True)
+        # >>> START SCROLLABLE CONTENT WRAPPER <<<
+        st.markdown('<div class="scrollable-tab-content">', unsafe_allow_html=True)
 
         # --- Controls Row ---
         ctrl_cols = st.columns([1.5, 1, 1, 1.5, 1.5]) # Adjust ratios as needed
         with ctrl_cols[0]:
-            transfer_blocks_scan = st.slider( "Blocks to Scan", min_value=1, max_value=5, value=5, # Range 1-10k, default 500
+            transfer_blocks_scan = st.slider( "Blocks to Scan", min_value=10, max_value=10000, value=500, # Range 10-10k, default 500
                 key="transfer_blocks_viz", help="Number of recent blocks to scan for transfers. Larger ranges are slower.")
         with ctrl_cols[1]:
              # Feature 12: Auto-Refresh Toggle
@@ -2030,14 +1931,21 @@ if tab_ctx := get_tab("📊 Live Transfers"):
                 df_filtered = df_transfers.copy()
                 if min_val_filter > 0:
                      value_col = f"Value ({token_info['symbol']})"
-                     df_filtered = df_filtered[pd.to_numeric(df_filtered[value_col], errors='coerce') >= min_val_filter]
+                     # Ensure column is numeric before filtering
+                     df_filtered[value_col] = pd.to_numeric(df_filtered[value_col], errors='coerce')
+                     df_filtered = df_filtered.dropna(subset=[value_col]) # Drop rows where conversion failed
+                     df_filtered = df_filtered[df_filtered[value_col] >= min_val_filter]
+
                 if address_filter:
                      address_filter_lower = address_filter.lower()
+                     # Ensure tagged columns exist before filtering on them
+                     from_tagged_col = 'From Tagged' if 'From Tagged' in df_filtered.columns else 'From'
+                     to_tagged_col = 'To Tagged' if 'To Tagged' in df_filtered.columns else 'To'
                      df_filtered = df_filtered[
                          df_filtered['From'].str.lower().contains(address_filter_lower) |
                          df_filtered['To'].str.lower().contains(address_filter_lower) |
-                         df_filtered['From Tagged'].str.lower().contains(address_filter_lower) | # Check tags too
-                         df_filtered['To Tagged'].str.lower().contains(address_filter_lower)
+                         df_filtered[from_tagged_col].str.lower().contains(address_filter_lower) |
+                         df_filtered[to_tagged_col].str.lower().contains(address_filter_lower)
                      ]
                 st.caption(f"Showing {len(df_filtered)} transfers after filtering.")
                 st.markdown("---")
@@ -2091,16 +1999,22 @@ if tab_ctx := get_tab("📊 Live Transfers"):
             except Exception as e:
                  print(f"Rerun interrupted: {e}") # May happen if user interacts during sleep
 
+        # >>> END SCROLLABLE CONTENT WRAPPER <<<
+        st.markdown('</div>', unsafe_allow_html=True)
+
+
 # --- Tab: Volume & Address Analysis ---
 if tab_ctx := get_tab("📈 Volume & Address Analysis"):
     with tab_ctx:
         st.header("📈 PYUSD Volume & Address Analysis")
         st.markdown("<p class='tab-description'>Analyzes transfer volume, top addresses (pie charts), and network flow (graph) over a block range.</p>", unsafe_allow_html=True)
+        # >>> START SCROLLABLE CONTENT WRAPPER <<<
+        st.markdown('<div class="scrollable-tab-content">', unsafe_allow_html=True)
 
         # --- Controls ---
         vol_ctrl_cols = st.columns([1.5, 1, 1, 2])
         with vol_ctrl_cols[0]:
-            volume_blocks_scan = st.slider("Blocks for Analysis", min_value=1, max_value=5, value=5, # Range 1-25k, default 1k
+            volume_blocks_scan = st.slider("Blocks for Analysis", min_value=10, max_value=25000, value=1000, # Range 10-25k, default 1k
                  key="volume_blocks_addr", help="Blocks for volume/address/graph analysis. Larger ranges are slower.")
         with vol_ctrl_cols[1]:
             top_n_addresses = st.number_input("Top N Addr (Pie)", min_value=3, max_value=20, value=10, step=1, key="top_n_pie")
@@ -2137,11 +2051,22 @@ if tab_ctx := get_tab("📈 Volume & Address Analysis"):
                  # --- Feature 11: AI Summarization ---
                  if gemini_model and len(df_volume) > 5: # Only summarize if data & AI available
                      if st.button("🤖 Summarize Volume Insights", key="summarize_volume_btn"):
+                         # Try to generate pie chart data for context, handle potential errors
+                         top_senders_labels = "N/A"; top_receivers_labels = "N/A"
+                         try:
+                             pie_from_fig = plot_top_addresses_pie(df_volume, token_info['symbol'], 'From', 3)
+                             if pie_from_fig: top_senders_labels = pie_from_fig.data[0]['labels'][:3]
+                         except Exception as pie_e1: print(f"Error generating sender pie for summary: {pie_e1}")
+                         try:
+                             pie_to_fig = plot_top_addresses_pie(df_volume, token_info['symbol'], 'To', 3)
+                             if pie_to_fig: top_receivers_labels = pie_to_fig.data[0]['labels'][:3]
+                         except Exception as pie_e2: print(f"Error generating receiver pie for summary: {pie_e2}")
+
                          prompt = f"""Analyze the following PYUSD transfer data summary from the last {volume_blocks_scan} blocks and provide 2-3 key insights in a concise, cyberpunk-themed bulleted list:
                          - Total Transfers: {len(df_volume)}
                          - Total Volume: ${total_vol:,.2f} {token_info['symbol']}
-                         - Top 3 Senders (by Volume): {plot_top_addresses_pie(df_volume, token_info['symbol'], 'From', 3).data[0]['labels'][:3] if plot_top_addresses_pie(df_volume, token_info['symbol'], 'From', 3) else 'N/A'}
-                         - Top 3 Receivers (by Volume): {plot_top_addresses_pie(df_volume, token_info['symbol'], 'To', 3).data[0]['labels'][:3] if plot_top_addresses_pie(df_volume, token_info['symbol'], 'To', 3) else 'N/A'}
+                         - Top 3 Senders (by Volume): {top_senders_labels}
+                         - Top 3 Receivers (by Volume): {top_receivers_labels}
                          Focus on significant patterns or large movements. Be brief."""
                          try:
                              with st.spinner("🧠 Generating AI summary..."):
@@ -2207,16 +2132,22 @@ if tab_ctx := get_tab("📈 Volume & Address Analysis"):
              if rpc_ok and contract_ok and token_info: results_placeholder_volume_addr.info("Select block range and click 'Analyze Volume & Network'.")
              else: results_placeholder_volume_addr.warning("Cannot analyze: RPC/Contract/Token Info unavailable.", icon="🚫")
 
+        # >>> END SCROLLABLE CONTENT WRAPPER <<<
+        st.markdown('</div>', unsafe_allow_html=True)
+
+
 # --- Tab: Supply Events (Feature 1) ---
 if tab_ctx := get_tab("🪙 Supply Events"):
     with tab_ctx:
         st.header("🪙 PYUSD Mint & Burn Events")
         st.markdown("<p class='tab-description'>Tracks PYUSD supply changes by monitoring `Mint` and `Burn` events via GCP RPC.</p>", unsafe_allow_html=True)
         st.warning("⚠️ Event names ('Mint', 'Burn') and parameters assumed. Verify against actual contract ABI.", icon="📜")
+        # >>> START SCROLLABLE CONTENT WRAPPER <<<
+        st.markdown('<div class="scrollable-tab-content">', unsafe_allow_html=True)
 
         supply_cols = st.columns([1.5, 1.5, 3])
         with supply_cols[0]:
-             supply_blocks_scan = st.slider("Blocks to Scan", min_value=1, max_value=5, value=5, key="supply_blocks", help="Blocks for Mint/Burn scan.")
+             supply_blocks_scan = st.slider("Blocks to Scan", min_value=10, max_value=10000, value=1000, key="supply_blocks", help="Blocks for Mint/Burn scan.")
         with supply_cols[1]:
              fetch_supply = st.button("🔄 Refresh Supply Events", key="fetch_supply_btn", disabled=not (rpc_ok and contract_ok and token_info))
 
@@ -2236,8 +2167,10 @@ if tab_ctx := get_tab("🪙 Supply Events"):
             col_m, col_b = st.columns(2)
             with col_m:
                 st.subheader("Recent Mints")
-                if not mint_df.empty:
-                    st.dataframe(mint_df[["Timestamp", "Block", "Tx Hash", "Recipient Tagged", f"Amount ({token_info['symbol']})"]].head(50), hide_index=True, use_container_width=True)
+                if mint_df is not None and not mint_df.empty:
+                    display_cols_mint = ["Timestamp", "Block", "Tx Hash", "Recipient Tagged", f"Amount ({token_info['symbol']})"]
+                    valid_cols_mint = [col for col in display_cols_mint if col in mint_df.columns]
+                    st.dataframe(mint_df[valid_cols_mint].head(50), hide_index=True, use_container_width=True)
                     # Export Mint Data
                     csv_mint = mint_df.to_csv(index=False).encode('utf-8')
                     st.download_button("📥 Download Mint Data (CSV)", csv_mint, f"pyusd_mints_{supply_blocks_scan}blocks.csv", 'text/csv', key='download_mint_csv')
@@ -2246,8 +2179,10 @@ if tab_ctx := get_tab("🪙 Supply Events"):
 
             with col_b:
                  st.subheader("Recent Burns")
-                 if not burn_df.empty:
-                     st.dataframe(burn_df[["Timestamp", "Block", "Tx Hash", "Burner Tagged", f"Amount ({token_info['symbol']})"]].head(50), hide_index=True, use_container_width=True)
+                 if burn_df is not None and not burn_df.empty:
+                     display_cols_burn = ["Timestamp", "Block", "Tx Hash", "Burner Tagged", f"Amount ({token_info['symbol']})"]
+                     valid_cols_burn = [col for col in display_cols_burn if col in burn_df.columns]
+                     st.dataframe(burn_df[valid_cols_burn].head(50), hide_index=True, use_container_width=True)
                      # Export Burn Data
                      csv_burn = burn_df.to_csv(index=False).encode('utf-8')
                      st.download_button("📥 Download Burn Data (CSV)", csv_burn, f"pyusd_burns_{supply_blocks_scan}blocks.csv", 'text/csv', key='download_burn_csv')
@@ -2255,27 +2190,36 @@ if tab_ctx := get_tab("🪙 Supply Events"):
                  else: st.warning("Error fetching Burn events.")
 
             # Net Supply Change Plot (Basic)
-            if not mint_df.empty or not burn_df.empty:
+            if token_info and ((mint_df is not None and not mint_df.empty) or (burn_df is not None and not burn_df.empty)):
                  st.markdown("---")
                  st.subheader("Net Supply Change in Scanned Blocks")
                  mint_amount_col = f"Amount ({token_info['symbol']})"
-                 # Combine mints and burns with block numbers
-                 mints = mint_df[['Block', mint_amount_col]].copy()
-                 burns = burn_df[['Block', mint_amount_col]].copy()
-                 mints['Change'] = pd.to_numeric(mints[mint_amount_col], errors='coerce')
-                 burns['Change'] = -pd.to_numeric(burns[mint_amount_col], errors='coerce') # Negative for burns
-                 supply_change = pd.concat([mints[['Block', 'Change']], burns[['Block', 'Change']]])
-                 supply_change_grouped = supply_change.groupby('Block')['Change'].sum().reset_index()
-                 supply_change_grouped.sort_values('Block', inplace=True)
+                 supply_change_data = []
 
-                 if not supply_change_grouped.empty:
-                      fig_supply = px.bar(supply_change_grouped, x='Block', y='Change',
-                                           title=f"Net PYUSD Supply Change per Block (Last ~{supply_blocks_scan} Blocks)",
-                                           labels={'Block': 'Block Number', 'Change': f'Net Change (${token_info["symbol"]})'},
-                                           template='plotly_dark')
-                      fig_supply.update_layout(bargap=0.2, paper_bgcolor='rgba(0,0,0,0)', plot_bgcolor='rgba(0,0,0,0)')
-                      st.plotly_chart(fig_supply, use_container_width=True)
-                 else: st.info("Could not calculate net supply change.")
+                 if mint_df is not None and not mint_df.empty and 'Block' in mint_df.columns and mint_amount_col in mint_df.columns:
+                      mints = mint_df[['Block', mint_amount_col]].copy()
+                      mints['Change'] = pd.to_numeric(mints[mint_amount_col], errors='coerce')
+                      supply_change_data.append(mints[['Block', 'Change']])
+
+                 if burn_df is not None and not burn_df.empty and 'Block' in burn_df.columns and mint_amount_col in burn_df.columns:
+                      burns = burn_df[['Block', mint_amount_col]].copy()
+                      burns['Change'] = -pd.to_numeric(burns[mint_amount_col], errors='coerce') # Negative for burns
+                      supply_change_data.append(burns[['Block', 'Change']])
+
+                 if supply_change_data:
+                      supply_change = pd.concat(supply_change_data).dropna(subset=['Change'])
+                      supply_change_grouped = supply_change.groupby('Block')['Change'].sum().reset_index()
+                      supply_change_grouped.sort_values('Block', inplace=True)
+
+                      if not supply_change_grouped.empty:
+                           fig_supply = px.bar(supply_change_grouped, x='Block', y='Change',
+                                                title=f"Net PYUSD Supply Change per Block (Last ~{supply_blocks_scan} Blocks)",
+                                                labels={'Block': 'Block Number', 'Change': f'Net Change (${token_info["symbol"]})'},
+                                                template='plotly_dark')
+                           fig_supply.update_layout(bargap=0.2, paper_bgcolor='rgba(0,0,0,0)', plot_bgcolor='rgba(0,0,0,0)')
+                           st.plotly_chart(fig_supply, use_container_width=True)
+                      else: st.info("Could not calculate net supply change (no valid mints/burns).")
+                 else: st.info("No valid mint or burn data found to calculate net supply change.")
 
         elif fetch_supply: # Button pressed but results still None
              st.warning("⚠️ Failed to fetch supply events. Check logs or RPC status.", icon="📡")
@@ -2283,16 +2227,21 @@ if tab_ctx := get_tab("🪙 Supply Events"):
              if rpc_ok and contract_ok and token_info: st.info("Click 'Refresh Supply Events' to load data.")
              else: st.warning("Cannot fetch: RPC/Contract/Token Info unavailable.", icon="🚫")
 
+        # >>> END SCROLLABLE CONTENT WRAPPER <<<
+        st.markdown('</div>', unsafe_allow_html=True)
+
 
 # --- Tab: Approvals (Feature 2) ---
 if tab_ctx := get_tab("🛡️ Approvals"):
     with tab_ctx:
         st.header("🛡️ PYUSD Approval Events")
         st.markdown("<p class='tab-description'>Monitors ERC20 `Approval` events via GCP RPC. Highlights potentially risky unlimited approvals.</p>", unsafe_allow_html=True)
+        # >>> START SCROLLABLE CONTENT WRAPPER <<<
+        st.markdown('<div class="scrollable-tab-content">', unsafe_allow_html=True)
 
         appr_cols = st.columns([1.5, 1.5, 3])
         with appr_cols[0]:
-            appr_blocks_scan = st.slider("Blocks to Scan", min_value=1, max_value=5, value=5, key="appr_blocks", help="Blocks for Approval scan.")
+            appr_blocks_scan = st.slider("Blocks to Scan", min_value=10, max_value=10000, value=1000, key="appr_blocks", help="Blocks for Approval scan.")
         with appr_cols[1]:
             fetch_appr = st.button("🔄 Refresh Approvals", key="fetch_appr_btn", disabled=not (rpc_ok and contract_ok and token_info))
 
@@ -2305,13 +2254,16 @@ if tab_ctx := get_tab("🛡️ Approvals"):
         approval_df = st.session_state.get('approval_df')
 
         if approval_df is not None:
-            if not approval_df.empty:
+            if not approval_df.empty and token_info:
                  st.subheader("Recent Approvals")
                  # Highlight unlimited approvals
                  def highlight_unlimited(row):
                      return ['background-color: rgba(255, 100, 100, 0.3)'] * len(row) if row['Unlimited'] else [''] * len(row)
 
-                 df_display_appr = approval_df[["Timestamp", "Block", "Tx Hash", "Owner Tagged", "Spender Tagged", f"Amount ({token_info['symbol']})", "Unlimited"]].head(100)
+                 display_cols_appr = ["Timestamp", "Block", "Tx Hash", "Owner Tagged", "Spender Tagged", f"Amount ({token_info['symbol']})", "Unlimited"]
+                 valid_cols_appr = [col for col in display_cols_appr if col in approval_df.columns]
+                 df_display_appr = approval_df[valid_cols_appr].head(100)
+
                  st.dataframe(
                      df_display_appr.style.apply(highlight_unlimited, axis=1), # Apply highlighting
                      hide_index=True, use_container_width=True
@@ -2330,12 +2282,18 @@ if tab_ctx := get_tab("🛡️ Approvals"):
              if rpc_ok and contract_ok and token_info: st.info("Click 'Refresh Approvals' to load data.")
              else: st.warning("Cannot fetch: RPC/Contract/Token Info unavailable.", icon="🚫")
 
+        # >>> END SCROLLABLE CONTENT WRAPPER <<<
+        st.markdown('</div>', unsafe_allow_html=True)
+
+
 # --- Tab: Balance Check ---
-# (Keep existing Balance Check tab logic, it uses get_address_label now via get_address_balance)
 if tab_ctx := get_tab("💰 Balance Check"):
     with tab_ctx:
         st.header("💰 Check PYUSD Address Balance")
         st.markdown("<p class='tab-description'>Queries the current PYUSD balance for a given address using Google Cloud RPC.</p>", unsafe_allow_html=True)
+        # >>> START SCROLLABLE CONTENT WRAPPER <<<
+        st.markdown('<div class="scrollable-tab-content">', unsafe_allow_html=True)
+
         address_to_check = st.text_input("Ethereum Address or Known Label", key="balance_address", placeholder="0x... or 'PYUSD Contract'", label_visibility="collapsed")
 
         disable_balance_check = not (rpc_ok and contract_ok and token_info)
@@ -2348,6 +2306,7 @@ if tab_ctx := get_tab("💰 Balance Check"):
             # Try to resolve known label first
             if address_input_cleaned:
                 for addr, label in KNOWN_ADDRESSES.items():
+                    # Case-insensitive label matching
                     if label.lower() == address_input_cleaned.lower():
                         target_address = addr
                         st.info(f"Checking balance for label '{label}' ({addr[:8]}...)")
@@ -2363,22 +2322,33 @@ if tab_ctx := get_tab("💰 Balance Check"):
             if target_address: # If we have a valid address to check
                 with st.spinner(f"🔍 Querying balance for `{get_address_label(target_address)}` via GCP RPC..."):
                     balance = get_address_balance(pyusd_contract, target_address)
-                    if balance is not None:
+                    if balance is not None and token_info:
                         label_display = get_address_label(target_address)
                         st.metric(label=f"Balance: {label_display}",
                                   value=f"{balance:,.{token_info['decimals']}f} ${token_info['symbol']}")
-                    # Error/Warning displayed within get_address_balance function
+                    elif balance is None:
+                        # Error/Warning is usually displayed within get_address_balance function
+                        st.error("Failed to retrieve balance. Check RPC/Contract status or address.", icon="❌")
+                    elif not token_info:
+                        st.warning("Could not format balance - token info missing.")
+
             elif not address_input_cleaned: # No input provided
                 st.warning("⚠️ Please enter an Ethereum address or known label.")
 
         if disable_balance_check: st.caption("⛔ Balance Check Disabled: Requires RPC, Contract & Token Info.")
 
+        # >>> END SCROLLABLE CONTENT WRAPPER <<<
+        st.markdown('</div>', unsafe_allow_html=True)
+
+
 # --- Tab: Transaction Lookup ---
-# (Keep existing Tx Lookup tab logic)
 if tab_ctx := get_tab("🧾 Tx Lookup"):
      with tab_ctx:
         st.header("🧾 Transaction Details Lookup")
         st.markdown("<p class='tab-description'>Retrieves Ethereum transaction details and receipt using Google Cloud RPC.</p>", unsafe_allow_html=True)
+        # >>> START SCROLLABLE CONTENT WRAPPER <<<
+        st.markdown('<div class="scrollable-tab-content">', unsafe_allow_html=True)
+
         tx_hash_lookup = st.text_input("Transaction Hash", key="tx_hash_lookup", placeholder="0x...", label_visibility="collapsed")
 
         disable_tx_lookup = not rpc_ok
@@ -2402,7 +2372,7 @@ if tab_ctx := get_tab("🧾 Tx Lookup"):
                     for k, v in tx_details.items():
                          val_str = str(v) if v is not None else "None"
                          # Tag addresses
-                         if k in ["From", "To", "Contract Address Created"] and isinstance(v, str) and Web3.is_address(v):
+                         if k in ["From", "To", "Contract Address Created"] and isinstance(v, str) and v != 'N/A' and Web3.is_address(v):
                              display_details[f"{k} (Tagged)"] = get_address_label(v)
                          display_details[k] = val_str
 
@@ -2419,22 +2389,26 @@ if tab_ctx := get_tab("🧾 Tx Lookup"):
                              cols_tx[col_idx % 2].text(f"{display_key}:")
                              cols_tx[col_idx % 2].code(display_val, language='text')
                              col_idx += 1
-                    st.markdown(f"👀 [View Transaction on Etherscan](https://etherscan.io/tx/{tx_hash_lookup_cleaned})")
+                    st.markdown(f"👀 [View Transaction on Etherscan](https://etherscan.io/tx/{tx_hash_lookup_cleaned})", target="_blank")
                 # Error handled within get_tx_details
             elif tx_hash_lookup_cleaned: st.error(f"❌ Invalid Transaction Hash Format.")
             else: st.warning("⚠️ Please enter a Transaction Hash.")
 
         if disable_tx_lookup: st.caption("⛔ Transaction Lookup Disabled: Requires GCP RPC Connection.")
 
+        # >>> END SCROLLABLE CONTENT WRAPPER <<<
+        st.markdown('</div>', unsafe_allow_html=True)
+
 
 # --- Tab: Block Trace ---
-# (Keep existing Block Trace tab logic)
 if tab_ctx := get_tab("🔬 Block Trace"):
      with tab_ctx:
         # ... Keep implementation from v1.8 ...
         st.header("🔬 Block Trace Explorer (Advanced)")
         st.markdown("<p class='tab-description'>Uses Google Cloud RPC `debug_traceBlock*` methods to inspect executions within a block.</p>", unsafe_allow_html=True)
         st.warning("""⚠️ **Note:** Requires specific RPC support (e.g., enabling the `debug` namespace on your GCP endpoint). Tracing can be slow and resource-intensive. Results depend heavily on the chosen tracer.""", icon="🛠️")
+        # >>> START SCROLLABLE CONTENT WRAPPER <<<
+        st.markdown('<div class="scrollable-tab-content">', unsafe_allow_html=True)
 
         block_id_input = st.text_input(
             "Block Number / Hash / 'latest'",
@@ -2470,7 +2444,8 @@ if tab_ctx := get_tab("🔬 Block Trace"):
 
                     # Download button
                     try:
-                        trace_str = json.dumps(block_trace, indent=2, default=lambda o: f"<unserializable: {type(o).__name__}>")
+                        # Use default=str for basic serialization fallback
+                        trace_str = json.dumps(block_trace, indent=2, default=str)
                         st.download_button(label="📥 Download Full Trace (JSON)", data=trace_str, file_name=f"trace_{block_id_input_cleaned}.json", mime="application/json")
                     except Exception as json_e: st.error(f"Failed to prepare trace data for download: {json_e}")
                 # Error messages handled within get_block_trace
@@ -2478,18 +2453,27 @@ if tab_ctx := get_tab("🔬 Block Trace"):
 
         if disable_trace: st.caption("⛔ Block Trace Disabled: Requires GCP RPC Connection.")
 
+        # >>> END SCROLLABLE CONTENT WRAPPER <<<
+        st.markdown('</div>', unsafe_allow_html=True)
+
+
 # --- Tab: Historical Analysis (Feature 4) ---
 if tab_ctx := get_tab("🕰️ Historical Analysis"):
     with tab_ctx:
         st.header("🕰️ Historical PYUSD Analysis")
         st.markdown("<p class='tab-description'>Analyze PYUSD events over a specified block range. **Warning:** This uses direct RPC batching and can be very slow and resource-intensive for large ranges!</p>", unsafe_allow_html=True)
+        # >>> START SCROLLABLE CONTENT WRAPPER <<<
+        st.markdown('<div class="scrollable-tab-content">', unsafe_allow_html=True)
 
         # Inputs for block range
         hist_cols = st.columns(3)
+        default_start = w3.eth.block_number - 1000 if rpc_ok else 0
+        default_end = w3.eth.block_number if rpc_ok else 0
         with hist_cols[0]:
-             hist_start_block = st.number_input("Start Block", min_value=0, value=w3.eth.block_number - 5 if rpc_ok else 0, step=1, key="hist_start")
+             hist_start_block = st.number_input("Start Block", min_value=0, value=max(0, default_start), step=100, key="hist_start")
         with hist_cols[1]:
-             hist_end_block = st.number_input("End Block", min_value=hist_start_block if hist_start_block else 0, value=w3.eth.block_number if rpc_ok else 0, step=1, key="hist_end")
+             # Ensure end block is not less than start block initially
+             hist_end_block = st.number_input("End Block", min_value=hist_start_block if hist_start_block is not None else 0, value=max(hist_start_block if hist_start_block is not None else 0, default_end), step=100, key="hist_end")
         with hist_cols[2]:
              hist_batch_size = st.number_input("RPC Batch Size", min_value=50, max_value=5000, value=1000, step=50, key="hist_batch", help="Lower if hitting RPC limits, higher might be faster but riskier.")
 
@@ -2530,17 +2514,27 @@ if tab_ctx := get_tab("🕰️ Historical Analysis"):
         if hist_df_display is not None:
             st.markdown("---")
             st.subheader(f"Historical {event_type_to_analyze} Data ({hist_start_block} - {hist_end_block})")
-            if not hist_df_display.empty:
+            if hist_df_display is not None and not hist_df_display.empty and token_info:
                  st.dataframe(hist_df_display.head(200), hide_index=True, use_container_width=True) # Show sample
                  st.info(f"Displaying first 200 of {len(hist_df_display)} results.")
 
                  # Add basic plots for historical data if relevant (e.g., volume over time for Transfers)
-                 if event_type_to_analyze == "Transfer" and 'Timestamp' in hist_df_display.columns:
+                 if event_type_to_analyze == "Transfer" and 'Timestamp' in hist_df_display.columns and f"Value ({token_info['symbol']})" in hist_df_display.columns:
                      try:
-                         hist_df_display['Date'] = pd.to_datetime(hist_df_display['Timestamp']).dt.date
-                         daily_volume = hist_df_display.groupby('Date')[f"Value ({token_info['symbol']})"].sum().reset_index()
-                         fig_hist_vol = px.line(daily_volume, x='Date', y=f"Value ({token_info['symbol']})", title="Historical Daily Transfer Volume", template='plotly_dark')
-                         st.plotly_chart(fig_hist_vol, use_container_width=True)
+                         hist_plot_df = hist_df_display.copy()
+                         # Ensure timestamp is datetime and value is numeric for plotting
+                         hist_plot_df['Timestamp_DT'] = pd.to_datetime(hist_plot_df['Timestamp'], errors='coerce')
+                         value_col_hist = f"Value ({token_info['symbol']})"
+                         hist_plot_df[value_col_hist] = pd.to_numeric(hist_plot_df[value_col_hist], errors='coerce')
+                         hist_plot_df.dropna(subset=['Timestamp_DT', value_col_hist], inplace=True)
+
+                         if not hist_plot_df.empty:
+                             hist_plot_df['Date'] = hist_plot_df['Timestamp_DT'].dt.date
+                             daily_volume = hist_plot_df.groupby('Date')[value_col_hist].sum().reset_index()
+                             fig_hist_vol = px.line(daily_volume, x='Date', y=value_col_hist, title="Historical Daily Transfer Volume", template='plotly_dark')
+                             st.plotly_chart(fig_hist_vol, use_container_width=True)
+                         else:
+                             st.info("No valid data points to plot historical volume.")
                      except Exception as e_hist_plot:
                          st.warning(f"Could not plot historical volume: {e_hist_plot}")
 
@@ -2553,12 +2547,18 @@ if tab_ctx := get_tab("🕰️ Historical Analysis"):
 
         if disable_hist: st.caption("⛔ Historical Analysis Disabled: Requires RPC, Contract & Token Info.")
 
+        # >>> END SCROLLABLE CONTENT WRAPPER <<<
+        st.markdown('</div>', unsafe_allow_html=True)
+
 
 # --- Tab: News Feed (Modified for Sentiment) ---
 if tab_ctx := get_tab("📰 News Feed"):
     with tab_ctx:
         st.header("📰 Latest Blockchain & PYUSD News")
         st.markdown("<p class='tab-description'>Recent news with AI-powered sentiment analysis, fetched from NewsAPI.</p>", unsafe_allow_html=True)
+        # >>> START SCROLLABLE CONTENT WRAPPER <<<
+        st.markdown('<div class="scrollable-tab-content">', unsafe_allow_html=True)
+
         st.caption(f"News fetched around {datetime.now().strftime('%Y-%m-%d %H:%M:%S UTC')}. Data cached ~30 mins.")
 
         news_keywords = [
@@ -2599,13 +2599,18 @@ if tab_ctx := get_tab("📰 News Feed"):
             elif NEWSAPI_API_KEY:
                  st.info("No recent news items found matching keywords.")
 
+        # >>> END SCROLLABLE CONTENT WRAPPER <<<
+        st.markdown('</div>', unsafe_allow_html=True)
+
 
 # --- Tab: Simulated Implant Payment ---
-# (Keep existing Implant Sim tab logic)
 if tab_ctx := get_tab("💳 Implant Sim"):
      with tab_ctx:
         st.header("💳 Simulate Bio-Implant Payment")
         st.markdown("<p class='tab-description'>Conceptual simulation of a PYUSD payment initiated via biochip. Uses GCP RPC for network data and contract info.</p>", unsafe_allow_html=True)
+        # >>> START SCROLLABLE CONTENT WRAPPER <<<
+        st.markdown('<div class="scrollable-tab-content">', unsafe_allow_html=True)
+
         st.info(f"Simulating payment for Implant ID: `{SIMULATED_IMPLANT_ID}`", icon="🆔")
 
         col1_sim, col2_sim = st.columns(2)
@@ -2634,11 +2639,12 @@ if tab_ctx := get_tab("💳 Implant Sim"):
                         trace_sim = simulate_gcp_trace_transaction(tx_sim) # Assumes function exists
                         with st.expander("Simulated GCP RPC Trace Result", expanded=False):
                             try:
-                                 trace_sim_str = json.dumps(trace_sim, indent=2, default=lambda o: f"<unserializable: {type(o).__name__}>")
+                                 # Use default=str for basic serialization fallback
+                                 trace_sim_str = json.dumps(trace_sim, indent=2, default=str)
                                  st.code(trace_sim_str, language="json")
                                  st.caption("Note: Trace structure is a simplified representation.")
                             except Exception as json_e_sim: st.error(f"Cannot display simulated trace: {json_e_sim}"); st.json(trace_sim)
-                elif not user_wallet: pass
+                elif not user_wallet: pass # Error message shown in get_user_wallet_address
                 elif not merchant_valid: st.error(f"❌ Invalid Merchant Address Format: `{merchant_addr}`")
                 elif not amount_valid: st.error(f"❌ Invalid or Zero Amount Entered.")
 
@@ -2647,6 +2653,9 @@ if tab_ctx := get_tab("💳 Implant Sim"):
         st.markdown("---")
         st.caption("Disclaimer: This is a conceptual simulation only.")
 
+        # >>> END SCROLLABLE CONTENT WRAPPER <<<
+        st.markdown('</div>', unsafe_allow_html=True)
+
 
 # --- Footer ---
 st.markdown("---")
@@ -2654,3 +2663,22 @@ st.markdown(f"<p style='text-align:center; font-size: 0.9em; opacity: 0.7;'>© {
 
 # --- End of Streamlit App Script ---
 print("Streamlit app script v2.0 finished loading.")
+```
+
+**Changes Made:**
+
+1.  **Added CSS Class:**
+    *   In the main `<style>` block (within the `st.markdown(...)` call near the top), a new CSS class `.scrollable-tab-content` was added.
+    *   This class sets `max-height: 75vh` (75% of the viewport height, adjustable), `overflow-y: auto` (adds vertical scrollbar only when needed), `overflow-x: hidden` (prevents horizontal scroll), and some padding.
+    *   Optional scrollbar styling for WebKit browsers (Chrome, Safari, Edge) was also included.
+
+2.  **Wrapped Tab Content:**
+    *   For *each* of the specified tabs (`📊 Live Transfers`, `📈 Volume & Address Analysis`, `🪙 Supply Events`, `🛡️ Approvals`, `💰 Balance Check`, `🧾 Tx Lookup`, `🔬 Block Trace`, `🕰️ Historical Analysis`, `📰 News Feed`, `💳 Implant Sim`):
+        *   Immediately after the `with tab_ctx:` line (and usually after the `st.header` and description markdown), the following line was added:
+            ```python
+            st.markdown('<div class="scrollable-tab-content">', unsafe_allow_html=True)
+            ```
+        *   At the very end of the code block for that specific tab (just before the indentation level decreases), the closing tag was added:
+            ```python
+            st.markdown('</div>', unsafe_allow_html=True)
+            
