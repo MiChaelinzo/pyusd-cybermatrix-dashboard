@@ -2663,22 +2663,3 @@ st.markdown(f"<p style='text-align:center; font-size: 0.9em; opacity: 0.7;'>© {
 
 # --- End of Streamlit App Script ---
 print("Streamlit app script v2.0 finished loading.")
-```
-
-**Changes Made:**
-
-1.  **Added CSS Class:**
-    *   In the main `<style>` block (within the `st.markdown(...)` call near the top), a new CSS class `.scrollable-tab-content` was added.
-    *   This class sets `max-height: 75vh` (75% of the viewport height, adjustable), `overflow-y: auto` (adds vertical scrollbar only when needed), `overflow-x: hidden` (prevents horizontal scroll), and some padding.
-    *   Optional scrollbar styling for WebKit browsers (Chrome, Safari, Edge) was also included.
-
-2.  **Wrapped Tab Content:**
-    *   For *each* of the specified tabs (`📊 Live Transfers`, `📈 Volume & Address Analysis`, `🪙 Supply Events`, `🛡️ Approvals`, `💰 Balance Check`, `🧾 Tx Lookup`, `🔬 Block Trace`, `🕰️ Historical Analysis`, `📰 News Feed`, `💳 Implant Sim`):
-        *   Immediately after the `with tab_ctx:` line (and usually after the `st.header` and description markdown), the following line was added:
-            ```python
-            st.markdown('<div class="scrollable-tab-content">', unsafe_allow_html=True)
-            ```
-        *   At the very end of the code block for that specific tab (just before the indentation level decreases), the closing tag was added:
-            ```python
-            st.markdown('</div>', unsafe_allow_html=True)
-            
