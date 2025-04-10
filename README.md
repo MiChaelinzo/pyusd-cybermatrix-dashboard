@@ -8,6 +8,10 @@ An advanced Streamlit dashboard providing real-time and historical analytics for
 
 <img width="929" alt="Screenshot 2025-04-04 210617" src="https://github.com/user-attachments/assets/8f0934c1-65b2-4bc9-84fb-5b75757c34d3" />
 
+<img width="935" alt="Screenshot 2025-04-10 150742" src="https://github.com/user-attachments/assets/cec9bf1e-0157-42e7-bc34-e5e2cb3c5e94" />
+
+<img width="933" alt="Screenshot 2025-04-10 150811" src="https://github.com/user-attachments/assets/ff9c8a0f-e1a2-41d4-a58f-f316900cc52a" />
+
 *(Screenshots reflect the general layout of v1.x; specific data, AI responses, and new v2.0 features like network graphs/historical tabs will vary)*
 
 ## Features (v2.0)
